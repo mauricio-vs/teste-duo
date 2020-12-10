@@ -5,47 +5,8 @@
         $connection = new mysqli("localhost","root","","duo_db");
         $query = $connection->query("
             SELECT
-                indicadores_respostas.resposta_text AS indicador,
-                COALESCE(
-                    (
-                        SELECT indicadores_respostas.resposta_text 
-                        FROM indicadores_respostas
-                        LEFT JOIN indicadores_secoes_itens
-                            ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
-                        WHERE indicadores_secoes_itens.titulo = 'Latitude'
-                            AND indicadores_respostas.id_indicador = indicadores.id
-                    ),
-                    (
-                        SELECT cidades.latitude
-                        FROM cidades
-                        INNER JOIN indicadores_respostas
-                        LEFT JOIN indicadores_secoes_itens
-                            ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
-                        WHERE indicadores_secoes_itens.titulo = 'Cidade'
-                            AND indicadores.id = indicadores_respostas.id_indicador
-                            AND cidades.cidades_id = CAST(indicadores_respostas.resposta_text AS UNSIGNED)
-                    )
-                ) AS latitude,
-                COALESCE(
-                    (
-                        SELECT indicadores_respostas.resposta_text 
-                        FROM indicadores_respostas
-                        LEFT JOIN indicadores_secoes_itens
-                            ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
-                        WHERE indicadores_secoes_itens.titulo = 'Longitude'
-                            AND indicadores_respostas.id_indicador = indicadores.id
-                    ),
-                    (
-                        SELECT cidades.longitude
-                        FROM cidades
-                        INNER JOIN indicadores_respostas
-                        LEFT JOIN indicadores_secoes_itens
-                        ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
-                        WHERE indicadores_secoes_itens.titulo = 'Cidade'
-                            AND indicadores.id = indicadores_respostas.id_indicador
-                            AND cidades.cidades_id = CAST(indicadores_respostas.resposta_text AS UNSIGNED)
-                    )
-                ) AS longitude
+                indicadores.id AS indicador_id,
+                indicadores_respostas.resposta_text AS indicador_identificacao
             FROM indicadores
             LEFT JOIN indicadores_respostas
                 ON indicadores_respostas.id_indicador = indicadores.id
@@ -55,6 +16,49 @@
                 OR (indicadores_secoes_itens.titulo = 'Instituição')
         ");
         $data = $query->fetch_all(MYSQLI_ASSOC);
+        $array_indicadores = [];
+        foreach($data as $indicador) {
+            $indicador_query = $connection->query("
+                    SELECT indicadores_respostas.resposta_text 
+                    FROM indicadores_respostas
+                    LEFT JOIN indicadores_secoes_itens
+                        ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
+                    WHERE (indicadores_secoes_itens.titulo = 'Latitude'
+                        OR indicadores_secoes_itens.titulo = 'Longitude')
+                        AND indicadores_respostas.id_indicador =
+                            {$indicador['indicador_id']}
+                    LIMIT 2
+                ");
+            $coordenadas = $indicador_query->fetch_all(MYSQLI_ASSOC);
+            $indicador_query->free_result();
+            if(empty($coordenadas)) {
+                $indicador_query = $connection->query("
+                    SELECT cidades.latitude, cidades.longitude
+                    FROM cidades
+                    LEFT JOIN indicadores_respostas
+                        ON indicadores_respostas.id_indicador = {$indicador['indicador_id']}
+                    LEFT JOIN indicadores_secoes_itens
+                        ON indicadores_secoes_itens.id = indicadores_respostas.id_secao_item
+                    WHERE indicadores_secoes_itens.titulo = 'Cidade'
+                        AND cidades.cidades_id =
+                            CAST(indicadores_respostas.resposta_text AS UNSIGNED)
+                    LIMIT 1
+                ");
+                $coordenadas = $indicador_query->fetch_all(MYSQLI_ASSOC);
+                $indicador_query->free_result();
+                $array_indicadores[] = [
+                    'indicador' => $indicador['indicador_identificacao'],
+                    'latitude' => $coordenadas[0]['latitude'],
+                    'longitude' => $coordenadas[0]['longitude']
+                ];
+            } else {
+                $array_indicadores[] = [
+                    'indicador' => $indicador['indicador_identificacao'],
+                    'latitude' => $coordenadas[0]['resposta_text'],
+                    'longitude' => $coordenadas[1]['resposta_text']
+                ];
+            }
+        }
         $query->free_result();
         $connection->close();
     } catch(mysqli_sql_exception $error) {
@@ -75,10 +79,10 @@
     <main class="container">
         <h1>Teste Duo</h1>
         <?php
-            if($data) {
+            if(!empty($array_indicadores)) {
                 echo "<table class='striped'><thead><tr><th>Identificação do indicador</th>"
                     ."<th>Latitude</th><th>Longitude</th></tr></thead><tbody>";
-                foreach($data as $item) {
+                foreach($array_indicadores as $item) {
                     echo "<tr><td>{$item["indicador"]}</td><td>{$item["latitude"]}</td>"
                         ."<td>{$item["longitude"]}</td></tr>";
                 }
