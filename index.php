@@ -1,9 +1,10 @@
 <?php
     $time = microtime(1);
+    mysqli_report(MYSQLI_REPORT_STRICT);
     try {
-        $connection = new PDO("mysql:host=localhost;port=3306;dbname=duo_db","root","");
+        $connection = new mysqli("localhost","root","","duo_db");
         $query = $connection->query("
-            SELECT 
+            SELECT
                 indicadores_respostas.resposta_text AS indicador,
                 COALESCE(
                     (
@@ -53,9 +54,12 @@
             WHERE indicadores_secoes_itens.titulo = 'Nome da capacitação'
                 OR (indicadores_secoes_itens.titulo = 'Instituição')
         ");
-        $data = $query->fetchAll();
-    } catch(PDOException $error) {
-        echo 'Erro de conexão com banco de dados: ' . $error->getMessage();
+        $data = $query->fetch_all(MYSQLI_ASSOC);
+        $query->free_result();
+        $connection->close();
+    } catch(mysqli_sql_exception $error) {
+        echo 'Erro de conexão com banco de dados: '.$error->getMessage();
+        exit();
     }
 ?>
 <!DOCTYPE html>
