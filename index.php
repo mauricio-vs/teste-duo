@@ -72,7 +72,7 @@
         <h1>Teste Duo</h1>
         <?php
             if($data) {
-                echo "<table class='striped'><thead><tr><th>Indicador</th>"
+                echo "<table class='striped'><thead><tr><th>Identificação do indicador</th>"
                     ."<th>Latitude</th><th>Longitude</th></tr></thead><tbody>";
                 foreach($data as $item) {
                     echo "<tr><td>{$item["indicador"]}</td><td>{$item["latitude"]}</td>"
